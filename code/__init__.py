@@ -1,8 +1,7 @@
 """
-PCam histopathology SSL project — source package.
+PCam histopathology SSL project - source package.
 
-Top-level entry points re-exported for convenience, e.g.:
-
+Usage from notebook:
     from src import (
         load_all_data, DataBundle,
         SimCLRModel, MAEViTImproved,

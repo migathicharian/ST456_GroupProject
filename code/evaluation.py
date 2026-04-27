@@ -3,13 +3,13 @@ Evaluation, visualisation, and interpretability helpers for the PCam
 histopathology SSL project.
 
 Includes:
-    - evaluate_model: AUC / F1 / Accuracy on a DataLoader.
-    - summarise_results / format_mean_std: turn raw runs into mean ± std tables.
+    - evaluate_model: AUC, F1, Accuracy on a DataLoader.
+    - summarise_results, format_mean_std: turn raw runs into mean ± std tables.
     - plot_roc_pr_curves, plot_confusion, plot_tsne: figures for the report.
     - extract_embeddings: pull encoder features for visualisation.
     - GradCAM: class-activation maps for ResNet-based classifiers.
 
-Usage:
+Usage from notebook:
     from src.evaluation import (
         evaluate_model, summarise_results, format_mean_std,
         plot_roc_pr_curves, plot_confusion, extract_embeddings,
@@ -39,20 +39,17 @@ from sklearn.metrics import (
 from torch.utils.data import DataLoader
 
 
-# ---------------------------------------------------------------------------
-# Device (defined here too to keep evaluation.py import-independent from
-# training.py -- avoids circular imports when training.py imports this module)
-# ---------------------------------------------------------------------------
+# Device 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# ---------------------------------------------------------------------------
 # Metric computation
-# ---------------------------------------------------------------------------
-def evaluate_model(model: nn.Module, loader: DataLoader) -> Dict[str, np.ndarray]:
-    """Run inference over loader and compute loss + AUC / F1 / Accuracy.
 
-    Returns a dict that also contains the raw y_true / y_prob / y_pred arrays
+def evaluate_model(model: nn.Module, loader: DataLoader) -> Dict[str, np.ndarray]:
+    """Run inference over loader and compute loss and AUC, F1, Accuracy.
+
+    Returns a dict that also contains the raw y_true, y_prob, y_pred arrays
     so downstream plots (ROC, confusion matrix) can re-use them without a
     second forward pass.
     """
@@ -90,9 +87,8 @@ def evaluate_model(model: nn.Module, loader: DataLoader) -> Dict[str, np.ndarray
     }
 
 
-# ---------------------------------------------------------------------------
 # Result tables (mean +/- std)
-# ---------------------------------------------------------------------------
+ 
 def summarise_results(df: pd.DataFrame) -> pd.DataFrame:
     """Aggregate raw per-seed results into mean and std per configuration."""
     return (
@@ -116,7 +112,7 @@ def format_mean_std(df: pd.DataFrame, metric: str) -> pd.Series:
 
 
 def build_report_table(summary: pd.DataFrame) -> pd.DataFrame:
-    """Convenience: turn a summarise_results output into a report-ready table."""
+    """Turn a summarise_results output into a report-ready table."""
     table = summary[["method", "strategy", "label_fraction"]].copy()
     table["AUC"] = format_mean_std(summary, "test_auc")
     table["F1"] = format_mean_std(summary, "test_f1")
@@ -124,9 +120,8 @@ def build_report_table(summary: pd.DataFrame) -> pd.DataFrame:
     return table
 
 
-# ---------------------------------------------------------------------------
-# Plots: ROC / PR / Confusion matrix
-# ---------------------------------------------------------------------------
+# Plots: ROC, PR, Confusion matrix
+
 def plot_roc_pr_curves(
     y_true: np.ndarray,
     y_prob: np.ndarray,
@@ -172,9 +167,8 @@ def plot_confusion(
     plt.show()
 
 
-# ---------------------------------------------------------------------------
 # Embeddings and t-SNE
-# ---------------------------------------------------------------------------
+
 def extract_embeddings(
     model: nn.Module,
     loader: DataLoader,
@@ -230,15 +224,10 @@ def plot_tsne(
     plt.show()
 
 
-# ---------------------------------------------------------------------------
-# Grad-CAM (ResNet-friendly)
-# ---------------------------------------------------------------------------
-class GradCAM:
-    """Minimal Grad-CAM implementation suitable for ResNet-based classifiers.
+# Grad-CAM (ResNet)
 
-    Example:
-        cam = GradCAM(model, model.encoder.layer4)
-        heatmap = cam(image_tensor.unsqueeze(0).to(device))
+class GradCAM:
+    """Grad-CAM implementation suitable for ResNet-based classifiers.
     """
 
     def __init__(self, model: nn.Module, target_module: nn.Module):

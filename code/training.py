@@ -10,7 +10,7 @@ Includes:
     - TrainConfig, train_classifier.
     - run_single_experiment, run_experiment_grid.
 
-Usage:
+Usage from notebook:
     from src.training import (
         set_seed, device, nt_xent_loss,
         train_simclr, train_mae, train_mae_improved,
@@ -34,7 +34,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-# ── Global config (moved here to avoid default-arg NameError) ───────────────
+# Global config 
 @dataclass
 class TrainConfig:
     epochs: int = 15
@@ -65,14 +65,13 @@ from models import (
     build_simclr_classifier,
     build_supervised_scratch_classifier,
     configure_trainable_parameters,
-    LoRAResNetClassifier,           # ← 新加
-    VPTMAEClassifier,               # ← 新加
+    LoRAResNetClassifier,           
+    VPTMAEClassifier,               
 )
 
 
-# ---------------------------------------------------------------------------
 # Global utilities
-# ---------------------------------------------------------------------------
+
 SEED = 42
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -87,9 +86,8 @@ def set_seed(seed: int = SEED) -> None:
     torch.backends.cudnn.benchmark = False
 
 
-# ---------------------------------------------------------------------------
 # SimCLR loss
-# ---------------------------------------------------------------------------
+
 def nt_xent_loss(z_i: torch.Tensor, z_j: torch.Tensor, temperature: float = 0.5) -> torch.Tensor:
     """NT-Xent (normalised temperature-scaled cross entropy) loss from SimCLR.
 
@@ -112,14 +110,12 @@ def nt_xent_loss(z_i: torch.Tensor, z_j: torch.Tensor, temperature: float = 0.5)
     return F.cross_entropy(sim, labels)
 
 
-# ---------------------------------------------------------------------------
 # MAE helpers
-# ---------------------------------------------------------------------------
+
 def patchify(imgs: torch.Tensor, patch_size: int = 8) -> torch.Tensor:
     """Convert a batch of images into a sequence of flattened patches.
 
-    The patch_size must match the MAE variant: 8 for MAEViT, 4 for
-    MAEViTImproved.
+    The patch_size must match the MAE variant: 8 for MAEViT, 4 for MAEViTImproved.
     """
     n, c, h, w = imgs.shape
     x = imgs.reshape(n, c, h // patch_size, patch_size, w // patch_size, patch_size)
@@ -132,7 +128,7 @@ class EMA:
     """Exponential moving average of model parameters used during MAE-Improved.
 
     apply_shadow() swaps in the EMA weights; restore() restores the current
-    training weights. In this codebase we keep the shadow internal and the
+    training weights. In this codebase, we keep the shadow internal and the
     checkpoint saves the training model's state_dict directly.
     """
 
@@ -185,17 +181,16 @@ def get_cosine_schedule_with_warmup(
     return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
-# ---------------------------------------------------------------------------
 # Phase 1: SSL pre-training
-# ---------------------------------------------------------------------------
+
 def train_simclr(
     data: DataBundle,
     checkpoint_dir: Path,
     epochs: int = 20,                    # 10 to 20
     batch_size: int = 128,
     learning_rate: float = 3e-4,
-    warmup_epochs: int = 2,              # warmup feature
-    weight_decay: float = 0.05,          # decay feature
+    warmup_epochs: int = 2,              
+    weight_decay: float = 0.05,          
     tailored: bool = True,
     checkpoint_name: str = "simclr_encoder_tailored.pth",
     num_workers: int = 2,
@@ -215,7 +210,6 @@ def train_simclr(
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
                         drop_last=True, num_workers=num_workers)
     
-    # New training method and feature
     model = SimCLRModel().to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate,
                                   weight_decay=weight_decay)
@@ -258,11 +252,11 @@ def train_simclr(
 def train_mae(
     data: DataBundle,
     checkpoint_dir: Path,
-    epochs: int = 20,                    #  10 to 20
+    epochs: int = 20,                    # 10 to 20
     batch_size: int = 128,
-    learning_rate: float = 1.5e-4,       # ← 1e-3 to 1.5e-4
-    warmup_epochs: int = 2,              # new feature
-    weight_decay: float = 0.05,          # new feature
+    learning_rate: float = 1.5e-4,       # 1e-3 to 1.5e-4
+    warmup_epochs: int = 2,              
+    weight_decay: float = 0.05,          
     checkpoint_name: str = "mae_encoder.pth",
     num_workers: int = 2,
     seed: int = SEED,
@@ -381,9 +375,9 @@ def train_mae_improved(
     return model, history, checkpoint_path
 
 
-# ---------------------------------------------------------------------------
+
 # Phase 2: downstream classifier training
-# ---------------------------------------------------------------------------
+
 def train_classifier(
     model: nn.Module,
     train_loader: DataLoader,
@@ -558,7 +552,7 @@ def run_experiment_grid(
 ) -> pd.DataFrame:
     """Iterate over a (method, strategy, label, seed) grid and collect metrics.
 
-    Returns a tidy DataFrame where each row is one experiment.
+    Returns a DataFrame where each row is one experiment.
     """
     if config is None:
         config = DEFAULT_EXPERIMENT_CONFIG

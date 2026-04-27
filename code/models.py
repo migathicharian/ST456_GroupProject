@@ -2,14 +2,14 @@
 Neural network architectures for the PCam histopathology SSL project.
 
 Includes:
-    - SimCLRModel: ResNet-18 encoder + projection head for contrastive pre-training.
+    - SimCLRModel: ResNet-18 encoder and projection head for contrastive pre-training.
     - MAEViT: a small masked autoencoder ViT for generative pre-training.
-    - MAEViTImproved: a deeper MAE variant (depth=12, patch=4, + proper init).
+    - MAEViTImproved: a deeper MAE variant (depth=12, patch=4, proper init).
     - ResNetBinaryClassifier and MAEBinaryClassifier: downstream binary heads.
     - build_*_classifier(): factory functions that load SSL checkpoints into a
       fresh classifier ready for fine-tuning.
 
-Usage:
+Usage from notebook:
     from src.models import (
         SimCLRModel, MAEViT, MAEViTImproved,
         ResNetBinaryClassifier, MAEBinaryClassifier,
@@ -30,12 +30,12 @@ import torchvision.models as tv_models
 try:
     from timm.models.vision_transformer import Block
 except ImportError:
-    Block = None  # MAE models will raise a clearer error if used
+    # MAE models will raise an error if used
+    Block = None  
 
 
-# ---------------------------------------------------------------------------
 # SimCLR
-# ---------------------------------------------------------------------------
+
 class SimCLRModel(nn.Module):
     """ResNet-18 encoder + 2-layer MLP projector for SimCLR.
 
@@ -70,15 +70,14 @@ class SimCLRModel(nn.Module):
         return h, z
 
 
-# ---------------------------------------------------------------------------
+
 # MAE (base)
-# ---------------------------------------------------------------------------
+
 class MAEViT(nn.Module):
     """A compact Masked Autoencoder ViT for 96x96 images.
 
-    Encoder depth 6, patch size 8, embed dim 192. Used as the 'base MAE'
-    reference point; the Improved version is the one reported in the main
-    paradigm comparison.
+    Encoder depth 6, patch size 8, embed dim 192. 
+    Used as the 'base MAE' reference point.
     """
 
     def __init__(
@@ -172,9 +171,8 @@ class MAEViT(nn.Module):
         return x[:, 0]
 
 
-# ---------------------------------------------------------------------------
 # MAE Improved
-# ---------------------------------------------------------------------------
+
 class MAEViTImproved(nn.Module):
     """Deeper MAE with patch_size 4, depth 12, proper weight init, decoder norm.
 
@@ -289,9 +287,8 @@ class MAEViTImproved(nn.Module):
         return x[:, 0]
 
 
-# ---------------------------------------------------------------------------
 # Downstream classifiers
-# ---------------------------------------------------------------------------
+
 class ResNetBinaryClassifier(nn.Module):
     """ResNet encoder + linear binary classification head."""
 
@@ -318,9 +315,8 @@ class MAEBinaryClassifier(nn.Module):
         return self.fc(features)
 
 
-# ---------------------------------------------------------------------------
 # Fine-tuning strategy configuration
-# ---------------------------------------------------------------------------
+
 def configure_trainable_parameters(model: nn.Module, strategy: str) -> None:
     if strategy not in {"frozen", "partial", "full", "peft"}:           
         raise ValueError(f"Unknown strategy: {strategy}")
@@ -352,9 +348,8 @@ def configure_trainable_parameters(model: nn.Module, strategy: str) -> None:
                 param.requires_grad = True
 
 
-# ---------------------------------------------------------------------------
 # Classifier factories
-# ---------------------------------------------------------------------------
+
 def _build_resnet_encoder() -> nn.Module:
     """Build a 96x96-friendly ResNet-18 encoder (no fc) used everywhere."""
     encoder = tv_models.resnet18(weights=None)
@@ -395,17 +390,16 @@ def build_mae_improved_classifier(checkpoint_path: Path) -> MAEBinaryClassifier:
     encoder.load_state_dict(state)
     return MAEBinaryClassifier(encoder=encoder, feature_dim=192)
 
-# ---------------------------------------------------------------------------
-# PEFT (Parameter-Efficient Fine-Tuning): LoRA and VPT
-# ---------------------------------------------------------------------------
+# PEFT: LoRA and VPT
+
 import math
 
 
 class LoRALayer(nn.Module):
     """Low-Rank Adaptation bypass: y = x @ A @ B.
 
-    A is initialised with Kaiming-uniform and B with zeros — so at
-    initialisation the bypass contributes nothing, preserving the frozen
+    A is initialised with Kaiming-uniform and B with zeros
+    at initialisation the bypass contributes nothing, preserving the frozen
     encoder's output on the first forward pass.
     """
 
@@ -423,9 +417,7 @@ class LoRALayer(nn.Module):
 class LoRAResNetClassifier(nn.Module):
     """Frozen ResNet encoder + LoRA feature-level bypass + fc head.
 
-    Note: This is a simplified LoRA that operates on the final pooled
-    features, not on every linear/conv layer. Much fewer trainable
-    parameters than full fine-tuning.
+    A simplified LoRA operates on the final pooled features, not on every linear/conv layer. 
     """
 
     def __init__(self, encoder: nn.Module, feature_dim: int = 512, rank: int = 8):
@@ -444,7 +436,7 @@ class LoRAResNetClassifier(nn.Module):
 
 
 class VPTMAEClassifier(nn.Module):
-    """Visual Prompt Tuning (shallow) for a frozen MAE ViT encoder.
+    """Visual Prompt Tuning for a frozen MAE ViT encoder.
 
     Adds `num_prompts` learnable prompt tokens concatenated after the patch
     and CLS tokens. The ViT backbone is frozen; only prompts + fc are trained.

@@ -28,9 +28,8 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
+
 SEED = 42
 
 LABEL_FRACTIONS: Dict[str, float] = {
@@ -49,9 +48,9 @@ REQUIRED_H5_FILES: List[str] = [
 ]
 
 
-# ---------------------------------------------------------------------------
+
 # File helpers
-# ---------------------------------------------------------------------------
+
 def ensure_unzipped(src_dir: Path, dst_dir: Path, file_names: List[str]) -> None:
     """Copy or unzip the required H5 files into dst_dir if not already present."""
     dst_dir.mkdir(parents=True, exist_ok=True)
@@ -94,9 +93,9 @@ def load_metadata(path: Path, n: Optional[int] = None) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------------
+
 # Preprocessing
-# ---------------------------------------------------------------------------
+
 def preprocess_images(x: np.ndarray) -> np.ndarray:
     """Convert uint8 [0, 255] images to float32 [0, 1]."""
     return x.astype("float32") / 255.0
@@ -135,15 +134,14 @@ def make_labelled_subset(
     return x[idx], y[idx]
 
 
-# ---------------------------------------------------------------------------
+
 # DataBundle: one object holding all arrays + channel stats
-# ---------------------------------------------------------------------------
+
 @dataclass
 class DataBundle:
     """Container for everything Phase 1 and Phase 2 need from the dataset.
 
-    Using a single object instead of top-level globals keeps the refactored
-    code easier to reason about.
+    Using a single object.
     """
     x_pretrain: np.ndarray
     y_pretrain: np.ndarray
@@ -181,12 +179,12 @@ def load_all_data(
     """Load PCam H5 files, sample subsets, preprocess, and return a DataBundle.
 
     Args:
-        drive_data_dir: Folder where the raw .h5 / .h5.gz files live (Drive).
+        drive_data_dir: Folder where the raw .h5 / .h5.gz files locate.
         data_dir: Scratch folder where decompressed files are cached.
         pretrain_fraction: Fraction of training set used for SSL pre-training.
         downstream_pool_fraction: Fraction of training set kept as a pool from
-            which 1 / 5 / 10 percent labelled subsets will later be drawn.
-        use_subset: If False, use the full training split everywhere (slow).
+            which 1, 5, 10 percent labelled subsets will later be drawn.
+        use_subset: If False, use the full training split everywhere.
         seed: Random seed for stratified sampling.
     """
     drive_data_dir = Path(drive_data_dir)
@@ -267,8 +265,7 @@ def load_all_data(
     if meta_test is not None:
         x_test, y_test, meta_test, _ = remove_extreme_images(x_test, y_test, meta_test)
 
-    # Channel statistics are computed only from the SSL pretrain subset so
-    # that validation and test splits stay untouched.
+    # Channel mean and std are computed only from the SSL pretrain subset
     channel_mean = x_pretrain.mean(axis=(0, 1, 2))
     channel_std = x_pretrain.std(axis=(0, 1, 2)) + 1e-8
 
@@ -290,16 +287,14 @@ def load_all_data(
     )
 
 
-# ---------------------------------------------------------------------------
+
 # Transforms
-# ---------------------------------------------------------------------------
+
 class SimCLRTransform:
     """Two-view augmentation for SimCLR contrastive pre-training.
 
-    tailored=True uses histopathology-specific augmentations that respect the
-    rotation-invariance of H&E patches and the staining variation between
-    scanners. tailored=False uses a generic ImageNet-style recipe as an
-    ablation control.
+    tailored=True uses histopathology-specific augmentations.
+    tailored=False uses a generic ImageNet-style recipe as an ablation control.
     """
 
     def __init__(
@@ -350,8 +345,7 @@ class SimCLRTransform:
 def make_classification_transform(channel_mean: np.ndarray, channel_std: np.ndarray):
     """Minimal preprocessing for downstream classification evaluation.
 
-    Deliberately contains no augmentation so that evaluation isolates the
-    quality of the pre-trained encoder.
+    no augmentation
     """
     return T.Compose([
         T.ToTensor(),
@@ -360,8 +354,7 @@ def make_classification_transform(channel_mean: np.ndarray, channel_std: np.ndar
 
 
 def make_mae_transform(channel_mean: np.ndarray, channel_std: np.ndarray):
-    """Light augmentation for MAE pre-training. MAE derives its learning
-    signal from masking, so augmentation is kept intentionally simple.
+    """Small augmentation for MAE pre-training. 
     """
     return T.Compose([
         T.ToTensor(),
@@ -371,11 +364,11 @@ def make_mae_transform(channel_mean: np.ndarray, channel_std: np.ndarray):
     ])
 
 
-# ---------------------------------------------------------------------------
+
 # Dataset classes
-# ---------------------------------------------------------------------------
+
 class SSLPairDataset(Dataset):
-    """Returns two differently-augmented views of the same image. For SimCLR."""
+    """Returns two differently-augmented views of the same image for SimCLR."""
 
     def __init__(self, images: np.ndarray, transform):
         self.images = images
@@ -390,7 +383,7 @@ class SSLPairDataset(Dataset):
 
 
 class SSLImageDataset(Dataset):
-    """Returns one tensor per image. For MAE (masking happens inside the model)."""
+    """Returns one tensor per image for MAE."""
 
     def __init__(self, images: np.ndarray, transform=None):
         self.images = images
@@ -407,7 +400,7 @@ class SSLImageDataset(Dataset):
 
 
 class ClassificationDataset(Dataset):
-    """Image + label dataset for downstream supervised training and evaluation."""
+    """Image and label dataset for downstream supervised training and evaluation."""
 
     def __init__(self, images: np.ndarray, labels: np.ndarray, transform=None):
         self.images = images
@@ -427,9 +420,8 @@ class ClassificationDataset(Dataset):
         return image, label
 
 
-# ---------------------------------------------------------------------------
 # DataLoader helpers
-# ---------------------------------------------------------------------------
+
 def make_classification_loader(
     x: np.ndarray,
     y: np.ndarray,
@@ -453,7 +445,7 @@ def build_downstream_loaders(
     seed: int = SEED,
     num_workers: int = 2,
 ) -> Tuple[Dict[str, DataLoader], DataLoader, DataLoader]:
-    """Build train/val/test DataLoaders for all label budgets in one shot.
+    """Build train/val/test DataLoaders for all label budgets.
 
     Returns:
         train_loaders: dict mapping label budget name -> DataLoader.
